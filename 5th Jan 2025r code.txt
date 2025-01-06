@@ -1,0 +1,149 @@
+# ============================================
+# University Rankings Analysis
+# Research Question: What is the relationship between a university's quality of 
+# education score and its world ranking position in the CWUR dataset?
+# Author: [Your Name]
+# Date: [Current Date]
+# ============================================
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Set random seed for reproducibility
+set.seed(123)
+
+# Load and preprocess the dataset
+data <- read.csv("H:/assisgnment/hertfordshire assignment/Krishna stoke/Dataset/archive (1)/cwurData.csv")
+
+# Data Preprocessing with detailed comments
+data_clean <- data %>%
+    drop_na(quality_of_education, world_rank) %>%
+    mutate(
+        world_rank = as.numeric(world_rank),
+        rank_category = cut(world_rank, 
+                          breaks = c(0, 100, 250, 500, 1000),
+                          labels = c("Top 100", "101-250", "251-500", "501+"))
+    ) %>%
+    filter(between(quality_of_education, 
+                  quantile(quality_of_education, 0.25) - 1.5 * IQR(quality_of_education),
+                  quantile(quality_of_education, 0.75) + 1.5 * IQR(quality_of_education)))
+
+# Enhanced Descriptive Statistics
+summary_stats <- summary(data_clean[c("quality_of_education", "world_rank")])
+print("Detailed Summary Statistics:")
+print(summary_stats)
+
+# Enhanced Histogram with professional styling
+hist_plot <- ggplot(data_clean, aes(x = world_rank)) +
+    geom_histogram(aes(y = after_stat(density)), 
+                  bins = 30, 
+                  fill = "lightblue", 
+                  color = "darkblue", 
+                  alpha = 0.7) +
+    geom_density(aes(y = after_stat(density)), 
+                color = "red", 
+                linewidth = 1) +
+    labs(
+        title = "Distribution of University World Rankings",
+        subtitle = "With Normal Distribution Curve Overlay",
+        x = "World Ranking Position (1 = highest ranked)",
+        y = "Density",
+        caption = "Source: CWUR Dataset"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        plot.subtitle = element_text(hjust = 0.5, size = 12),
+        axis.title = element_text(size = 11)
+    )
+
+# Save enhanced histogram
+ggsave("histogram_worldrank.png", hist_plot, width = 10, height = 6, dpi = 300)
+
+# Improved scatter plot with enhanced features
+scatter_plot <- ggplot(data_clean, aes(x = quality_of_education, y = world_rank)) +
+    geom_point(alpha = 0.6, color = "darkblue") +
+    geom_smooth(method = "lm", 
+               color = "red", 
+               se = TRUE, 
+               formula = y ~ x) +
+    scale_y_reverse() +
+    labs(
+        title = "Relationship between Quality of Education and World Ranking",
+        subtitle = "Higher Quality Score → Better (Lower) Rank",
+        x = "Quality of Education Score",
+        y = "World Ranking Position (1 = highest ranked)",
+        caption = "Source: CWUR Dataset"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        plot.subtitle = element_text(hjust = 0.5, size = 12),
+        axis.title = element_text(size = 11)
+    )
+
+# Save enhanced scatter plot
+ggsave("scatter_plot.png", scatter_plot, width = 10, height = 6, dpi = 300)
+
+# Statistical Analysis Section
+# Normality test
+shapiro_test <- shapiro.test(data_clean$world_rank)
+print("\nShapiro-Wilk Normality Test Results:")
+print(shapiro_test)
+
+# Correlation analysis using Spearman's rank correlation
+# Using exact = FALSE to avoid warning about ties
+cor_test <- cor.test(data_clean$quality_of_education, 
+                     data_clean$world_rank,
+                     method = "spearman",
+                     exact = FALSE)
+
+# Linear Regression Analysis
+model <- lm(world_rank ~ quality_of_education, data = data_clean)
+
+# Save model diagnostics plots
+png("model_diagnostics.png", width = 1200, height = 1200, res = 150)
+par(mfrow = c(2, 2))
+plot(model)
+dev.off()
+
+# Save detailed results
+regression_summary <- data.frame(
+    term = c("(Intercept)", "quality_of_education"),
+    estimate = coef(model),
+    std_error = summary(model)$coefficients[,2],
+    t_value = summary(model)$coefficients[,3],
+    p_value = summary(model)$coefficients[,4]
+)
+write.csv(regression_summary, "regression_summary.csv", row.names = FALSE)
+
+# Detailed Final Interpretation
+cat("\nComprehensive Analysis Results:\n")
+cat("====================================\n")
+
+# 1. Data Distribution Analysis
+cat("1. Data Distribution Analysis:\n")
+cat("   - Normality Test: ", 
+    ifelse(shapiro_test$p.value > 0.05, 
+           "Data appears normally distributed", 
+           "Data does not appear normally distributed"), "\n")
+cat("   - Shapiro-Wilk p-value:", format.pval(shapiro_test$p.value), "\n\n")
+
+# 2. Correlation Analysis
+cat("2. Correlation Analysis:\n")
+cat("   - Spearman's Correlation Coefficient:", 
+    round(cor_test$estimate, 4), "\n")
+cat("   - Correlation p-value:", format.pval(cor_test$p.value), "\n\n")
+
+# 3. Regression Model Performance
+cat("3. Regression Model Performance:\n")
+cat("   - R-squared:", round(summary(model)$r.squared, 4), "\n")
+cat("   - Adjusted R-squared:", round(summary(model)$adj.r.squared, 4), "\n")
+cat("   - F-statistic:", round(summary(model)$fstatistic[1], 2), "\n\n")
+
+# 4. Model Coefficients
+cat("4. Model Coefficients:\n")
+cat("   - Intercept:", round(coef(model)[1], 4), "\n")
+cat("   - Quality of Education coefficient:", round(coef(model)[2], 4), "\n")
